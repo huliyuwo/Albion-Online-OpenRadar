@@ -55,6 +55,23 @@ export class MobsDatabase {
     }
 
     /**
+     * Clears every parsed entry so a retried load starts from a clean state
+     * instead of accumulating duplicates from a partially applied attempt.
+     * @private
+     */
+    _reset() {
+        this.mobsById.clear();
+        this.mobsByName.clear();
+        this.harvestableTypeIds.clear();
+        this.isLoaded = false;
+        this.stats = {
+            totalMobs: 0,
+            harvestables: 0,
+            loadTimeMs: 0
+        };
+    }
+
+    /**
      * Load and parse mobs.json
      * @param {string} jsonPath - Path to mobs.json file
      */
@@ -68,17 +85,32 @@ export class MobsDatabase {
                 { path: jsonPath }
             );
 
-            const response = await fetch(jsonPath, {cache: 'no-cache'});
+            const response = await fetch(jsonPath, {cache: 'no-store'});
             if (!response.ok) {
                 throw new Error(`Failed to fetch mobs: ${response.status}`);
             }
 
-            const mobs = await response.json();
+            const json = await response.json();
+
+            // The dumps are shipped as a bare array, but older/newer dump
+            // formats wrap it as { "Mobs": { "Mob": [...] } }. Accept both so a
+            // dump refresh cannot turn into a hard startup failure.
+            const mobs = Array.isArray(json)
+                ? json
+                : (json?.Mobs?.Mob ?? json?.mobs ?? json?.Mob ?? null);
 
             if (!Array.isArray(mobs)) {
                 throw new Error('Invalid mobs.min.json structure: expected array');
             }
 
+            // A truncated/empty response can still parse as valid JSON; the real
+            // database has thousands of entries, so treat a tiny list as a
+            // failed load and let the retry logic fetch it again.
+            if (mobs.length < 100) {
+                throw new Error(`Suspicious mobs.min.json payload: only ${mobs.length} entries`);
+            }
+
+            this._reset();
             this._parseMobs(mobs);
 
             this.stats.loadTimeMs = Math.round(performance.now() - startTime);

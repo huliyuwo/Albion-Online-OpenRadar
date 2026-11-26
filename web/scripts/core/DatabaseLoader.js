@@ -8,7 +8,9 @@ import {MobsDatabase} from '../data/MobsDatabase.js';
 import zonesDatabase from '../data/ZonesDatabase.js';
 import {CATEGORIES} from '../constants/LoggerConstants.js';
 
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 5;
+const BASE_RETRY_DELAY_MS = 300;
+const MAX_RETRY_DELAY_MS = 2000;
 
 // Global database state tracking
 window.databasesReady = false;
@@ -20,12 +22,28 @@ window.databaseLoadingProgress = {
     zones: false
 };
 
+/**
+ * Appends a per-attempt cache-buster to the asset path.
+ *
+ * Every attempt must produce a distinct URL: a Chromium cache entry that was
+ * stored from a `200 + ETag` response can later answer a conditional request
+ * with a bodiless 304, and if that cached body is no longer usable the fetch
+ * resolves "ok" while `response.json()` fails. Because the retries reused the
+ * exact same URL they kept hitting the same broken cache entry, so a single
+ * flaky load turned into a hard "Failed to load Mobs database" until a manual
+ * reload. A unique query string per attempt forces a fresh 200 every time.
+ */
+function bustedPath(path, attempt) {
+    const separator = path.includes('?') ? '&' : '?';
+    return `${path}${separator}_retry=${attempt}-${Date.now()}`;
+}
+
 async function loadDatabaseWithRetry(database, path, name, ...extraArgs) {
     let retryCount = 0;
 
     while (retryCount < MAX_RETRIES) {
         try {
-            await database.load(path, ...extraArgs);
+            await database.load(bustedPath(path, retryCount), ...extraArgs);
             window.logger?.debug(CATEGORIES.SYSTEM, `${name}Loaded`, {});
             return {success: true, database};
         } catch (error) {
@@ -43,9 +61,12 @@ async function loadDatabaseWithRetry(database, path, name, ...extraArgs) {
                 return {success: false, error, name};
             }
 
-            // Exponential backoff: 1s, 2s, 4s
-            const delay = 1000 * Math.pow(2, retryCount - 1);
-            await new Promise(resolve => setTimeout(resolve, delay));
+            // Exponential backoff with jitter (300ms, 600ms, 1200ms, 2000ms)
+            const backoff = Math.min(
+                MAX_RETRY_DELAY_MS,
+                BASE_RETRY_DELAY_MS * Math.pow(2, retryCount - 1)
+            );
+            await new Promise(resolve => setTimeout(resolve, backoff + Math.random() * 200));
         }
     }
 }
