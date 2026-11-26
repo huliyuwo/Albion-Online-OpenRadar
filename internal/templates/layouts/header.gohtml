@@ -9,6 +9,12 @@
     <div class="hidden md:block phone-landscape:hidden"></div>
 
     <div class="flex items-center gap-3">
+        <button id="langToggleBtn" type="button" title="Language / 语言"
+            class="p-2 rounded-md text-base-content/60 hover:text-base-content hover:bg-base-content/5 transition-colors flex items-center gap-1">
+            <i data-lucide="languages" class="w-4 h-4" stroke-width="1.5"></i>
+            <span id="langToggleText" class="text-xs hidden sm:inline">中文</span>
+        </button>
+
         <div id="wsStatusIndicator" class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-base-content/[0.02]">
             <span id="wsStatusDot" class="status status-neutral"></span>
             <span id="wsStatusText" class="text-xs text-base-content/50 hidden sm:inline">Connecting...</span>
