@@ -5,6 +5,12 @@ import settingsSync from "./SettingsSync.js";
 const SCALE_FACTOR = 1.0;
 const BASE_ZOOM = 4;
 
+// Canvas labels are translated at draw time; falls back to English when the
+// i18n module is not loaded (unit tests).
+function t(text) {
+    return window.__radarI18nTranslate?.(text) ?? text;
+}
+
 export class DrawingUtils {
     constructor() {
         this.fontSize = "12px";
@@ -421,7 +427,7 @@ export class DrawingUtils {
         let totalStacks = 0; for (const r of cluster.resources) { const size = (r.size !== undefined && !isNaN(parseInt(r.size))) ? parseInt(r.size) : 1; const tier = (r.tier !== undefined && !isNaN(parseInt(r.tier))) ? parseInt(r.tier) : 4; totalStacks += this.calculateRealResources(size, tier); }
 
         const countText = `×${cluster.count}`;
-        const typeText = cluster.type || '';
+        const typeText = cluster.type ? t(cluster.type) : '';
         const tierText = (cluster.tier !== undefined && cluster.tier !== null) ? `T${cluster.tier}` : '';
 
         const distanceGameUnits = Math.round(this.calculateDistance(cluster.x || 0, cluster.y || 0, 0, 0));
@@ -432,7 +438,7 @@ export class DrawingUtils {
         const clusterRadiusMeters = settingsSync.getNumber("settingRadarClusterRadius");
 
         const line1 = `${countText}${typeText ? ' ' + typeText : ''}${tierText ? ' ' + tierText : ''}`;
-        const line2 = `${stacksText} stacks · ${distText}${clusterRadiusMeters ? ' · R:' + clusterRadiusMeters + 'm' : ''}`;
+        const line2 = `${stacksText} ${t('stacks')} · ${distText}${clusterRadiusMeters ? ' · R:' + clusterRadiusMeters + 'm' : ''}`;
 
         const fontSize1 = this.getScaledFontSize(12, 8);
         const fontSize2 = this.getScaledFontSize(11, 7);
